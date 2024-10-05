@@ -1,0 +1,109 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # Job 1: Build Job
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          echo "Installing Python dependencies..."
+          retries=3
+          for i in $(seq 1 $retries); do
+            python -m pip install --upgrade pip && break || {
+              echo "Attempt $i: Failed to upgrade pip"
+              if [ "$i" -eq "$retries" ]; then
+                exit 1
+              fi
+              sleep 5
+            }
+          done
+          pip install -r requirements.txt || { echo "Failed to install dependencies"; exit 1; }
+          echo "Dependencies installed successfully."
+
+      - name: Build Docker Image
+        run: |
+          echo "Building Docker image with layer caching..."
+          docker build --cache-from=type=local,src=/cache -t home-assistant-temperature-web . || { echo "Docker build failed"; exit 1; }
+          echo "Docker image built successfully."
+
+  # Job 2: Test Job
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Run Container with Dummy Data
+        run: |
+          echo "Starting Docker container with dummy data..."
+          docker run -d --name test-container -p 5000:5000 \
+            -e USE_DUMMY_DATA=true \
+            -e FLASK_RUN_HOST="0.0.0.0" \
+            -e FLASK_RUN_PORT=5000 \
+            home-assistant-temperature-web || { echo "Failed to start Docker container"; exit 1; }
+          echo "Waiting for Docker container to become ready..."
+          for i in {1..10}; do
+            if curl -s http://localhost:5000 > /dev/null; then
+              echo "Docker container is ready."
+              break
+            fi
+            echo "Waiting for container... ($i/10)"
+            sleep 2
+            if [ "$i" -eq 10 ]; then
+              echo "Docker container failed to start in time."
+              exit 1
+            fi
+          done
+          echo "Docker container started successfully."
+
+      - name: Test Application Output
+        run: |
+          echo "Testing application output..."
+          response=$(curl -s http://localhost:5000)
+          if echo "$response" | grep '25°C / 77.0°F'; then
+            echo "Application output matches expected value."
+          else
+            echo "Test failed: Output did not match expected value. Received response:"
+            echo "$response"
+            exit 1
+          fi
+          echo "Application output verified successfully."
+
+      - name: Stop and remove container
+        run: |
+          echo "Stopping and removing Docker container..."
+          docker stop test-container && docker rm test-container || { echo "Failed to stop/remove Docker container"; exit 1; }
+          echo "Docker container stopped and removed."
+
+  # Job 3: Vulnerability Scan with Trivy
+  trivy-scan:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: home-assistant-temperature-web
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          output: trivy-results.txt
+      - name: Display Trivy Scan Results
+        run: |
+          echo "Displaying Trivy scan results..."
+          cat trivy-results.txt || { echo "Failed to display Trivy scan results"; exit 1; }
