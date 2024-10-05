@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  # Job 1: Build Job
-  build:
+  # Combined Build and Test Job
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -39,14 +39,6 @@ jobs:
           echo "Building Docker image with layer caching..."
           docker build --cache-from=type=local,src=/cache -t home-assistant-temperature-web . || { echo "Docker build failed"; exit 1; }
           echo "Docker image built successfully."
-
-  # Job 2: Test Job
-  test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v2
 
       - name: Run Container with Dummy Data
         run: |
@@ -90,9 +82,9 @@ jobs:
           docker stop test-container && docker rm test-container || { echo "Failed to stop/remove Docker container"; exit 1; }
           echo "Docker container stopped and removed."
 
-  # Job 3: Vulnerability Scan with Trivy
+  # Job 2: Vulnerability Scan with Trivy
   trivy-scan:
-    needs: build
+    needs: build-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Set up Trivy
