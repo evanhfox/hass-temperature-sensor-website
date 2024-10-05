@@ -100,7 +100,7 @@ def get_backyard_temperature():
         "Content-Type": "application/json",
     }
     # Construct the URL using urljoin to ensure proper URL formatting
-    url = urljoin(HOME_ASSISTANT_URL, ENTITY_ID)
+    url = urljoin(HOME_ASSISTANT_URL, f"api/states/{ENTITY_ID}")
     logger.info(f"Making request to Home Assistant API at: {url}")
     try:
         # Make a GET request to the Home Assistant API
