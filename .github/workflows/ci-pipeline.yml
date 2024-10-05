@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  # Combined Build and Test Job
-  build-and-test:
+  # Combined Build, Test, and Scan Job
+  build-test-and-scan:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -87,12 +87,7 @@ jobs:
           docker stop test-container && docker rm test-container || { echo "Failed to stop/remove Docker container"; exit 1; }
           echo "Docker container stopped and removed."
 
-  # Job 2: Vulnerability Scan with Trivy
-  trivy-scan:
-    needs: build-and-test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Set up Trivy
+      - name: Run Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: home-assistant-temperature-web
@@ -100,7 +95,9 @@ jobs:
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
           output: trivy-results.txt
+
       - name: Display Trivy Scan Results
         run: |
           echo "Displaying Trivy scan results..."
           cat trivy-results.txt || { echo "Failed to display Trivy scan results"; exit 1; }
+"
