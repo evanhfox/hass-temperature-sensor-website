@@ -99,4 +99,4 @@ jobs:
       - name: Display Trivy Scan Results
         run: |
           echo "Displaying Trivy scan results..."
-          cat trivy-results.txt || { echo "Failed to display Trivy scan results"; exit 1; }"
+          cat trivy-results.txt || { echo "Failed to display Trivy scan results"; exit 1; }
