@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  # Combined Build, Test, and Scan Job
-  build-test-and-scan:
+  # Build and Push Docker Image Job
+  build-and-push:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -36,9 +36,36 @@ jobs:
 
       - name: Build Docker Image
         run: |
-          echo "Building Docker image with layer caching..."
-          docker build --cache-from=type=local,src=/cache -t home-assistant-temperature-web . || { echo "Docker build failed"; exit 1; }
+          echo "Building Docker image..."
+          docker build -t ghcr.io/${{ github.repository }}:latest -t ghcr.io/${{ github.repository }}:${{ github.sha }} . || { echo "Docker build failed"; exit 1; }
           echo "Docker image built successfully."
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker Image
+        run: |
+          echo "Pushing Docker image to GitHub Container Registry..."
+          docker push ghcr.io/${{ github.repository }}:latest || { echo "Docker push failed"; exit 1; }
+          echo "Docker image pushed successfully."
+
+  # Test Docker Image Job
+  test:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Pull Docker Image from GHCR
+        run: |
+          echo "Pulling Docker image from GitHub Container Registry..."
+          docker pull ghcr.io/${{ github.repository }}:${{ github.sha }} || { echo "Failed to pull Docker image"; exit 1; }
+          echo "Docker image pulled successfully."
 
       - name: Run Container with Dummy Data
         run: |
@@ -47,7 +74,7 @@ jobs:
             -e USE_DUMMY_DATA=true \
             -e FLASK_RUN_HOST="0.0.0.0" \
             -e FLASK_RUN_PORT=5000 \
-            home-assistant-temperature-web || { echo "Failed to start Docker container"; exit 1; }
+            ghcr.io/${{ github.repository }}:${{ github.sha }} || { echo "Failed to start Docker container"; exit 1; }
           echo "Waiting for Docker container to become ready..."
           for i in {1..10}; do
             if curl -s http://localhost:5000 > /dev/null; then
@@ -87,10 +114,15 @@ jobs:
           docker stop test-container && docker rm test-container || { echo "Failed to stop/remove Docker container"; exit 1; }
           echo "Docker container stopped and removed."
 
+  # Vulnerability Scan Job
+  trivy-scan:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
       - name: Run Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: home-assistant-temperature-web
+          image-ref: ghcr.io/${{ github.repository }}:latest
           format: 'table'
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
