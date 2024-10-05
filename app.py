@@ -83,6 +83,7 @@ template = """
         <h1>Backyard Temperature</h1>
         <p class="temperature">{{ temperature_c }}&deg;C / {{ temperature_f }}&deg;F</p>
     </div>
+    <p style="font-size: 0.8rem; font-style: italic;">Last updated: {{ last_updated }}</p>
 </body>
 </html>
 """
@@ -111,8 +112,10 @@ def get_backyard_temperature():
         if response.status_code == 200:
             data = response.json()
             logger.info(f"Received data: {data}")
-            # Use get to safely access the 'state' key in the response
-            return float(data.get('state', None)) if data.get('state') is not None else None
+            # Extract the temperature value
+            temperature = float(data.get('state', None)) if data.get('state') is not None else None
+            last_updated = data.get('last_updated', None)
+            return temperature, last_updated
         else:
             logger.error(f"Failed to get data from Home Assistant. Status Code: {response.status_code}")
             return None
@@ -133,7 +136,7 @@ def index():
     client_ip = request.remote_addr
     logger.info(f"Handling request to '/' route from IP: {client_ip}")
     # Get the backyard temperature
-    temperature_c = get_backyard_temperature()
+    temperature_c, last_updated = get_backyard_temperature()
     if temperature_c is None:
         # If temperature could not be retrieved, set to 'N/A'
         temperature_c = "N/A"
@@ -143,7 +146,7 @@ def index():
         temperature_f = celsius_to_fahrenheit(temperature_c)
     logger.info(f"Temperature retrieved: {temperature_c}°C / {temperature_f}°F")
     # Render the HTML template with the temperature values
-    return render_template_string(template, temperature_c=temperature_c, temperature_f=temperature_f)
+    return render_template_string(template, temperature_c=temperature_c, temperature_f=temperature_f, last_updated=last_updated)
 
 # Run the Flask app
 if __name__ == '__main__':
