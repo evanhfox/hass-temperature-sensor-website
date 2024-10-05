@@ -6,8 +6,8 @@ on:
       - main
 
 jobs:
-  # Combined Build and Test Job
-  build-and-test:
+  # Job 1: Build Job
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -40,6 +40,14 @@ jobs:
           docker build --cache-from=type=local,src=/cache -t home-assistant-temperature-web . || { echo "Docker build failed"; exit 1; }
           echo "Docker image built successfully."
 
+  # Job 2: Test Job
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
       - name: Run Container with Dummy Data
         run: |
           echo "Starting Docker container with dummy data..."
@@ -63,15 +71,20 @@ jobs:
           done
           echo "Docker container started successfully."
 
-      - name: Test Application Output
+      - name: Install xmllint
+        run: sudo apt-get install -y libxml2-utils
+
+      - name: Test Application Output with xmllint
         run: |
           echo "Testing application output..."
           response=$(curl -s http://localhost:5000)
-          if echo "$response" | grep '25°C / 77.0°F'; then
+          temperature=$(echo "$response" | xmllint --html --xpath "string(//p[@class='temperature'])" - 2>/dev/null)
+          if [ "$temperature" = "25°C / 77.0°F" ]; then
             echo "Application output matches expected value."
           else
             echo "Test failed: Output did not match expected value. Received response:"
             echo "$response"
+            echo "Extracted temperature: $temperature"
             exit 1
           fi
           echo "Application output verified successfully."
@@ -82,9 +95,9 @@ jobs:
           docker stop test-container && docker rm test-container || { echo "Failed to stop/remove Docker container"; exit 1; }
           echo "Docker container stopped and removed."
 
-  # Job 2: Vulnerability Scan with Trivy
+  # Job 3: Vulnerability Scan with Trivy
   trivy-scan:
-    needs: build-and-test
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Set up Trivy
