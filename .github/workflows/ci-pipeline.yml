@@ -13,57 +13,41 @@ jobs:
   # Build Job
   build:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository }}/home-assistant-temperature-web:${{ github.sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
-
-      - name: Cache Docker layers
-        uses: actions/cache@v3
-        id: docker-cache
         with:
-          path: /home/runner/.docker/overlay2
-          key: ${{ runner.os }}-docker-${{ github.ref }}
-          restore-keys: |
-            ${{ runner.os }}-docker-
+          driver: docker-container
 
-      - name: Build Docker Image
+      - name: Log in to GitHub Container Registry
         run: |
-          echo "Building Docker image..."
-          docker build --cache-from type=local,src=/home/runner/.docker/overlay2 \
-                       --cache-to type=local,dest=/home/runner/.docker/overlay2-new \
-                       -t home-assistant-temperature-web .
-          echo "Docker image built successfully."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Save Docker Image as Artifact
+      - name: Build and Push Docker Image
         run: |
-          echo "Saving Docker image as artifact..."
-          docker save home-assistant-temperature-web -o home-assistant-temperature-web.tar
-        shell: bash
-
-      - name: Upload Docker Image Artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: docker-image
-          path: home-assistant-temperature-web.tar
+          echo "Building and pushing Docker image: $IMAGE_NAME"
+          docker buildx build --push -t $IMAGE_NAME .
 
   # Test Job
   test:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository }}/home-assistant-temperature-web:${{ github.sha }}
     steps:
-      - name: Download Docker Image Artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: docker-image
-
-      - name: Load Docker Image
+      - name: Log in to GitHub Container Registry
         run: |
-          echo "Loading Docker image..."
-          docker load -i home-assistant-temperature-web.tar
-          echo "Docker image loaded successfully."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull Docker Image
+        run: |
+          echo "Pulling Docker image: $IMAGE_NAME"
+          docker pull $IMAGE_NAME
 
       - name: Run Container with Dummy Data
         run: |
@@ -72,7 +56,7 @@ jobs:
             -e USE_DUMMY_DATA=true \
             -e FLASK_RUN_HOST="0.0.0.0" \
             -e FLASK_RUN_PORT=5000 \
-            home-assistant-temperature-web
+            $IMAGE_NAME
           echo "Waiting for Docker container to become ready..."
           for i in {1..10}; do
             if curl -s http://localhost:5000 > /dev/null; then
@@ -88,7 +72,12 @@ jobs:
           done
           echo "Docker container started successfully."
 
-      - name: Install dependencies
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: '3.12'
+
+      - name: Install Dependencies for Testing
         run: |
           echo "Installing dependencies for testing..."
           python -m pip install --upgrade pip
@@ -119,22 +108,22 @@ jobs:
   scan:
     runs-on: ubuntu-latest
     needs: build
+    env:
+      IMAGE_NAME: ghcr.io/${{ github.repository }}/home-assistant-temperature-web:${{ github.sha }}
     steps:
-      - name: Download Docker Image Artifact
-        uses: actions/download-artifact@v3
-        with:
-          name: docker-image
-
-      - name: Load Docker Image
+      - name: Log in to GitHub Container Registry
         run: |
-          echo "Loading Docker image..."
-          docker load -i home-assistant-temperature-web.tar
-          echo "Docker image loaded successfully."
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull Docker Image
+        run: |
+          echo "Pulling Docker image: $IMAGE_NAME"
+          docker pull $IMAGE_NAME
 
       - name: Run Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: home-assistant-temperature-web
+          image-ref: ${{ env.IMAGE_NAME }}
           format: 'table'
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
