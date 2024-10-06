@@ -72,31 +72,23 @@ jobs:
           done
           echo "Docker container started successfully."
 
-      - name: Set up Python
-        uses: actions/setup-python@v3
-        with:
-          python-version: '3.12'
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y libxml2-utils
 
-      - name: Install Dependencies for Testing
+      - name: Test Application Output with xmllint
         run: |
-          echo "Installing dependencies for testing..."
-          python -m pip install --upgrade pip
-          pip install pytest pytest-cov requests
-
-      - name: Run Pytest
-        run: |
-          echo "Running tests with pytest..."
-          pytest tests/ --cov=your_package --cov-report=xml
-        env:
-          USE_DUMMY_DATA: 'true'
-          FLASK_RUN_HOST: "0.0.0.0"
-          FLASK_RUN_PORT: "5000"
-
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: coverage.xml
+          echo "Testing application output..."
+          response=$(curl -s http://localhost:5000)
+          temperature=$(echo "$response" | xmllint --html --xpath "string(//p[@class='temperature'])" - 2>/dev/null)
+          if [ "$temperature" = "25°C / 77.0°F" ]; then
+            echo "Application output matches expected value."
+          else
+            echo "Test failed: Output did not match expected value. Received response:"
+            echo "$response"
+            echo "Extracted temperature: $temperature"
+            exit 1
+          fi
+          echo "Application output verified successfully."
 
       - name: Stop and Remove Container
         run: |
@@ -123,7 +115,7 @@ jobs:
       - name: Run Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ env.IMAGE_NAME }}
+          image-ref: $IMAGE_NAME
           format: 'table'
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
