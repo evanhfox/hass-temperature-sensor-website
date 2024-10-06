@@ -6,39 +6,60 @@ on:
       - main
 
 jobs:
-  # Combined Build, Test, and Scan Job
-  build-test-and-scan:
+  # Build Job
+  build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Set up Python
-        uses: actions/setup-python@v2
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Cache Docker layers
+        uses: actions/cache@v3
+        id: docker-cache
         with:
-          python-version: '3.12'
-
-      - name: Install dependencies
-        run: |
-          echo "Installing Python dependencies..."
-          retries=3
-          for i in $(seq 1 $retries); do
-            python -m pip install --upgrade pip && break || {
-              echo "Attempt $i: Failed to upgrade pip"
-              if [ "$i" -eq "$retries" ]; then
-                exit 1
-              fi
-              sleep 5
-            }
-          done
-          pip install -r requirements.txt || { echo "Failed to install dependencies"; exit 1; }
-          echo "Dependencies installed successfully."
+          path: /home/runner/.docker/overlay2
+          key: ${{ runner.os }}-docker-${{ github.ref }}
+          restore-keys: |
+            ${{ runner.os }}-docker-
 
       - name: Build Docker Image
         run: |
-          echo "Building Docker image with layer caching..."
-          docker build --cache-from=type=local,src=/cache -t home-assistant-temperature-web . || { echo "Docker build failed"; exit 1; }
+          echo "Building Docker image..."
+          docker build --cache-from type=local,src=/home/runner/.docker/overlay2 \
+                       --cache-to type=local,dest=/home/runner/.docker/overlay2-new \
+                       -t home-assistant-temperature-web .
           echo "Docker image built successfully."
+
+      - name: Save Docker Image as Artifact
+        run: |
+          echo "Saving Docker image as artifact..."
+          docker save home-assistant-temperature-web -o home-assistant-temperature-web.tar
+        shell: bash
+
+      - name: Upload Docker Image Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: docker-image
+          path: home-assistant-temperature-web.tar
+
+  # Test Job
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-image
+
+      - name: Load Docker Image
+        run: |
+          echo "Loading Docker image..."
+          docker load -i home-assistant-temperature-web.tar
+          echo "Docker image loaded successfully."
 
       - name: Run Container with Dummy Data
         run: |
@@ -47,7 +68,7 @@ jobs:
             -e USE_DUMMY_DATA=true \
             -e FLASK_RUN_HOST="0.0.0.0" \
             -e FLASK_RUN_PORT=5000 \
-            home-assistant-temperature-web || { echo "Failed to start Docker container"; exit 1; }
+            home-assistant-temperature-web
           echo "Waiting for Docker container to become ready..."
           for i in {1..10}; do
             if curl -s http://localhost:5000 > /dev/null; then
@@ -63,29 +84,48 @@ jobs:
           done
           echo "Docker container started successfully."
 
-      - name: Install xmllint
-        run: sudo apt-get install -y libxml2-utils
-
-      - name: Test Application Output with xmllint
+      - name: Install dependencies
         run: |
-          echo "Testing application output..."
-          response=$(curl -s http://localhost:5000)
-          temperature=$(echo "$response" | xmllint --html --xpath "string(//p[@class='temperature'])" - 2>/dev/null)
-          if [ "$temperature" = "25°C / 77.0°F" ]; then
-            echo "Application output matches expected value."
-          else
-            echo "Test failed: Output did not match expected value. Received response:"
-            echo "$response"
-            echo "Extracted temperature: $temperature"
-            exit 1
-          fi
-          echo "Application output verified successfully."
+          echo "Installing dependencies for testing..."
+          python -m pip install --upgrade pip
+          pip install pytest pytest-cov requests
 
-      - name: Stop and remove container
+      - name: Run Pytest
+        run: |
+          echo "Running tests with pytest..."
+          pytest tests/ --cov=your_package --cov-report=xml
+        env:
+          USE_DUMMY_DATA: 'true'
+          FLASK_RUN_HOST: "0.0.0.0"
+          FLASK_RUN_PORT: "5000"
+
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+      - name: Stop and Remove Container
         run: |
           echo "Stopping and removing Docker container..."
-          docker stop test-container && docker rm test-container || { echo "Failed to stop/remove Docker container"; exit 1; }
+          docker stop test-container && docker rm test-container
           echo "Docker container stopped and removed."
+
+  # Scan Job
+  scan:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Download Docker Image Artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: docker-image
+
+      - name: Load Docker Image
+        run: |
+          echo "Loading Docker image..."
+          docker load -i home-assistant-temperature-web.tar
+          echo "Docker image loaded successfully."
 
       - name: Run Trivy Vulnerability Scan
         uses: aquasecurity/trivy-action@master
@@ -96,7 +136,13 @@ jobs:
           ignore-unfixed: true
           output: trivy-results.txt
 
+      - name: Upload Trivy Scan Results
+        uses: actions/upload-artifact@v3
+        with:
+          name: trivy-scan-results
+          path: trivy-results.txt
+
       - name: Display Trivy Scan Results
         run: |
           echo "Displaying Trivy scan results..."
-          cat trivy-results.txt || { echo "Failed to display Trivy scan results"; exit 1; }
+          cat trivy-results.txt
