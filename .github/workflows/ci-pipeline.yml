@@ -122,7 +122,7 @@ jobs:
           output: trivy-results.txt
 
       - name: Upload Trivy Scan Results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-scan-results
           path: trivy-results.txt
