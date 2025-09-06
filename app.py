@@ -93,7 +93,8 @@ def get_backyard_temperature():
     # Use dummy data if enabled for testing purposes
     if USE_DUMMY_DATA:
         logger.info("Using dummy data for temperature.")
-        return 25  # Example dummy temperature value in Celsius
+        # Return a Celsius value and a placeholder for last updated
+        return 25, "N/A"
 
     # Prepare request headers for Home Assistant API
     headers = {
