@@ -111,8 +111,13 @@ def get_backyard_temperature():
 
         # If the response is successful, extract the temperature state
         if response.status_code == 200:
-            data = response.json()
-            logger.info(f"Received data: {data}")
+            try:
+                data = response.json()
+                logger.info(f"Received data: {data}")
+            except ValueError as e:
+                logger.error(f"Failed to parse JSON response: {e}")
+                return None, None
+            
             # Extract the temperature value with proper error handling
             state_value = data.get('state', None)
             temperature = None
