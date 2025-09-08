@@ -475,6 +475,30 @@ def test_entities_api_with_dummy_data():
         assert isinstance(payload["history"].get(eid), list)
 
 
+def test_root_uses_first_entity_when_entity_id_missing(monkeypatch):
+    app = load_app({
+        "USE_DUMMY_DATA": "false",
+        "HOME_ASSISTANT_URL": "http://example.com/",
+        "API_TOKEN": "token",
+        "ENTITIES": "sensor.primary,sensor.secondary",
+    })
+    class DummyResponse:
+        status_code = 200
+        @staticmethod
+        def json():
+            return {"state": "22.0", "last_updated": "2024-01-01T00:00:00Z"}
+    # Ensure it queries sensor.primary (first in list)
+    def fake_get(url, *args, **kwargs):
+        assert url.endswith("sensor.primary")
+        return DummyResponse()
+    monkeypatch.setattr(app.requests, "get", fake_get)
+    app.app.config["TESTING"] = True
+    client = app.app.test_client()
+    resp = client.get("/")
+    assert resp.status_code == 200
+    assert b"22.0&deg;C" in resp.data
+
+
 def test_entities_api_with_real_mode(monkeypatch):
     app = load_app({
         "USE_DUMMY_DATA": "false",

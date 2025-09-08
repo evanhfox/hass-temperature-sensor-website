@@ -172,12 +172,18 @@ def get_backyard_temperature():
         return 25, "N/A"
 
     # Prepare request headers for Home Assistant API
+    # Determine which entity to query in single-entity context
+    target_entity = ENTITY_ID or (ENTITIES[0] if ENTITIES else None)
     headers = {
         "Authorization": f"Bearer {API_TOKEN}",
         "Content-Type": "application/json",
     }
+    # If no entity available (misconfiguration), return None gracefully
+    if not target_entity:
+        logger.error("No ENTITY_ID configured and ENTITIES is empty. Cannot query temperature.")
+        return None, None
     # Construct the URL using urljoin to ensure proper URL formatting
-    url = urljoin(HOME_ASSISTANT_URL, f"api/states/{ENTITY_ID}")
+    url = urljoin(HOME_ASSISTANT_URL, f"api/states/{target_entity}")
     logger.info(f"Making request to Home Assistant API at: {url}")
     try:
         # Make a GET request to the Home Assistant API
