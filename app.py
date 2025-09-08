@@ -83,7 +83,7 @@ template = """
         <h1>Backyard Temperature</h1>
         <p class="temperature">{{ temperature_c }}&deg;C / {{ temperature_f }}&deg;F</p>
     </div>
-    <p style="font-size: 0.8rem; font-style: italic;">Last updated: {{ last_updated }}</p>
+    <p style="font-size: 0.8rem; font-style: italic;">Last updated: {{ last_updated or 'N/A' }}</p>
 </body>
 </html>
 """
@@ -113,8 +113,15 @@ def get_backyard_temperature():
         if response.status_code == 200:
             data = response.json()
             logger.info(f"Received data: {data}")
-            # Extract the temperature value
-            temperature = float(data.get('state', None)) if data.get('state') is not None else None
+            # Extract the temperature value with proper error handling
+            state_value = data.get('state', None)
+            temperature = None
+            if state_value is not None:
+                try:
+                    temperature = float(state_value)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid temperature state value: {state_value}")
+                    temperature = None
             last_updated = data.get('last_updated', None)
             return temperature, last_updated
         else:

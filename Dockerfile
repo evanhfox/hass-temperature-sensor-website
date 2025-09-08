@@ -5,7 +5,7 @@
 # Dockerfile to package this app into a container
 # Create a Dockerfile for building a containerized version of the app
 # FROM directive sets the base image to Python 3.9
-FROM python:alpine3.20
+FROM python:3.13-alpine
 
 # Set the working directory in the container
 WORKDIR /app
@@ -21,7 +21,7 @@ ENV FLASK_APP=app.py
 ENV FLASK_RUN_HOST=0.0.0.0
 ENV FLASK_RUN_PORT=5000
 ENV HOME_ASSISTANT_URL=
-ENV ENTITY_ID=7
+ENV ENTITY_ID=sensor.backyard_temperature
 ENV API_TOKEN=
 ENV USE_DUMMY_DATA=false
 

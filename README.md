@@ -16,8 +16,8 @@ This project is a simple Flask web application that connects to a Home Assistant
 
 To run the application, you need to install the following Python packages (as listed in `requirements.txt`):
 
-- Flask==3.0.3
-- requests==2.32.3
+- Flask==3.1.2
+- requests==2.32.5
 
 ## Setup Instructions
 
