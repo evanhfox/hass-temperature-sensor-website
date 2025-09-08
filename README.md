@@ -12,10 +12,16 @@ This project is a robust Flask web application that connects to a Home Assistant
 - 🧪 **Dummy Data Mode**: Built-in testing mode for development
 - 🐳 **Docker Support**: Multi-platform container builds (AMD64/ARM64)
 - 🔒 **Security Scanning**: Automated Trivy vulnerability scanning
-- 🧪 **Comprehensive Testing**: 22 test cases covering edge cases and errors
+- 🧪 **Comprehensive Testing**: 25 test cases covering edge cases and errors
 - 🚀 **CI/CD Pipeline**: GitHub Actions with automated builds and security scans
 - 📊 **Error Handling**: Robust handling of network issues, invalid data, and API errors
 - 📝 **Logging**: Comprehensive logging for debugging and monitoring
+
+### New (Multi-Entity + Dashboard)
+- 📦 Multi-entity support via `ENTITIES` env var
+- 🔁 Auto-refreshing dashboard at `/dashboard`
+- 📈 Inline SVG sparklines showing recent trends
+- 🔌 JSON API at `/api/sensors` with current values and in-memory history
 
 ## Requirements
 
@@ -64,6 +70,11 @@ To connect to your Home Assistant instance, you need to set the following enviro
 - `FLASK_RUN_HOST` (optional): The host on which to run the Flask app (default is `0.0.0.0`).
 - `FLASK_RUN_PORT` (optional): The port on which to run the Flask app (default is `5000`).
 
+Additional (for multi-entity/dashboard):
+- `ENTITIES` (optional): Comma-separated list of entity IDs (e.g., `sensor.backyard_temp,sensor.garage_temp`). If set, enables multi-entity mode and powers `/dashboard` and `/api/sensors`.
+- `REFRESH_INTERVAL_SECONDS` (optional): Auto-refresh interval for the dashboard and API clients. Default: `15`.
+- `HISTORY_POINTS` (optional): Number of recent points to keep per entity in in-memory history (ring buffer). Default: `100`.
+
 ### 4. Running the Application
 
 To run the application locally, use the following command:
@@ -92,12 +103,13 @@ python -m pytest tests/ -v
 python -m pytest tests/ --cov=app --cov-report=html
 ```
 
-The test suite includes 22 test cases covering:
+The test suite includes 25 test cases covering:
 - Temperature conversion edge cases
 - Error handling (network timeouts, invalid data, API errors)
 - Home Assistant API integration
 - Environment variable validation
 - Template rendering
+- Multi-entity JSON API and dashboard route
 
 ## Running with Docker
 
@@ -115,7 +127,7 @@ docker build -t home-assistant-temperature-web .
 docker buildx build --platform linux/amd64,linux/arm64 -t home-assistant-temperature-web .
 ```
 
-### 2. Run the Docker Container
+### 2. Run the Docker Container (single-entity)
 
 Run the container using the following command:
 
@@ -129,6 +141,22 @@ docker run -p 5000:5000 \
 ```
 
 **Note**: Replace the environment variable values with your actual Home Assistant configuration.
+
+### 3. Run the Docker Container (multi-entity + dashboard)
+
+```bash
+docker run -p 5000:5000 \
+  -e HOME_ASSISTANT_URL="http://your-home-assistant-ip:8123" \
+  -e API_TOKEN="your_long_lived_access_token" \
+  -e ENTITIES="sensor.backyard_temp,sensor.garage_temp,sensor.kitchen_temp" \
+  -e REFRESH_INTERVAL_SECONDS="15" \
+  -e HISTORY_POINTS="200" \
+  home-assistant-temperature-web
+```
+
+Then open:
+- Dashboard (multi-entity): `http://localhost:5000/dashboard`
+- JSON API: `http://localhost:5000/api/sensors`
 
 ## Using Dummy Data
 
@@ -158,7 +186,7 @@ hass-temperature-sensor-website/
 ├── Dockerfile                      # Multi-platform container build
 ├── requirements.txt                # Python dependencies
 ├── tests/
-│   └── test_app.py                # Comprehensive test suite (22 tests)
+│   └── test_app.py                # Comprehensive test suite (25 tests)
 ├── .github/
 │   └── workflows/
 │       ├── ci-pipeline.yml        # Main CI/CD pipeline
