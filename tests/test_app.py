@@ -18,6 +18,9 @@ def load_app(env=None):
         "HOME_ASSISTANT_URL",
         "ENTITY_ID",
         "API_TOKEN",
+        "ENTITIES",
+        "REFRESH_INTERVAL_SECONDS",
+        "HISTORY_POINTS",
     ]:
         os.environ.pop(key, None)
     os.environ.update(env)
@@ -450,3 +453,69 @@ def test_empty_response_data(monkeypatch):
     temp, last_updated = app.get_backyard_temperature()
     assert temp is None
     assert last_updated is None
+
+
+def test_entities_api_with_dummy_data():
+    app = load_app({
+        "USE_DUMMY_DATA": "true",
+        "ENTITIES": "sensor.one,sensor.two",
+        "HISTORY_POINTS": "5",
+        "REFRESH_INTERVAL_SECONDS": "1",
+    })
+    app.app.config["TESTING"] = True
+    client = app.app.test_client()
+    resp = client.get("/api/sensors")
+    assert resp.status_code == 200
+    payload = resp.get_json()
+    assert "current" in payload and "history" in payload and "errors" in payload
+    entities = [item["entity_id"] for item in payload["current"]]
+    assert set(entities) == {"sensor.one", "sensor.two"}
+    # History should be populated with current value
+    for eid in entities:
+        assert isinstance(payload["history"].get(eid), list)
+
+
+def test_entities_api_with_real_mode(monkeypatch):
+    app = load_app({
+        "USE_DUMMY_DATA": "false",
+        "HOME_ASSISTANT_URL": "http://example.com/",
+        "API_TOKEN": "token",
+        "ENTITIES": "sensor.a,sensor.b",
+    })
+    class DummyResponse:
+        status_code = 200
+        def __init__(self, state):
+            self._state = state
+        def json(self):
+            return {"state": self._state, "last_updated": "2024-01-01T00:00:00Z", "attributes": {"friendly_name": "Name", "unit_of_measurement": "°C"}}
+    calls = {"sensor.a":0, "sensor.b":0}
+    def fake_get(url, headers=None, timeout=10):
+        if url.endswith("sensor.a"):
+            calls["sensor.a"] += 1
+            return DummyResponse("21.5")
+        else:
+            calls["sensor.b"] += 1
+            return DummyResponse("19")
+    monkeypatch.setattr(app.requests, "get", fake_get)
+    app.app.config["TESTING"] = True
+    client = app.app.test_client()
+    resp = client.get("/api/sensors")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    ids = [c["entity_id"] for c in data["current"]]
+    assert set(ids) == {"sensor.a", "sensor.b"}
+    # Values present and converted
+    by_id = {c["entity_id"]: c for c in data["current"]}
+    assert by_id["sensor.a"]["value_c"] == 21.5
+    assert by_id["sensor.a"]["value_f"] == app.celsius_to_fahrenheit(21.5)
+    # History contains at least one point per entity
+    assert len(data["history"]["sensor.a"]) >= 1
+    assert len(data["history"]["sensor.b"]) >= 1
+
+
+def test_dashboard_route_renders(dummy_app):
+    dummy_app.app.config["TESTING"] = True
+    client = dummy_app.app.test_client()
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
+    assert b"Sensor Dashboard" in resp.data
