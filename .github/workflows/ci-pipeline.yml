@@ -79,7 +79,7 @@ jobs:
         # Test the application
         echo "Testing application..."
         response=$(curl -s http://localhost:5000)
-        if echo "$response" | grep -q "25°C / 77.0°F"; then
+        if echo "$response" | grep -q "25&deg;C / 77.0&deg;F"; then
           echo "✅ Application test passed"
         else
           echo "❌ Application test failed"
