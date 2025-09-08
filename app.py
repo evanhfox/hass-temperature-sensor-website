@@ -93,7 +93,8 @@ def get_backyard_temperature():
     # Use dummy data if enabled for testing purposes
     if USE_DUMMY_DATA:
         logger.info("Using dummy data for temperature.")
-        return 25  # Example dummy temperature value in Celsius
+        # Return a Celsius value and a placeholder for last updated
+        return 25, "N/A"
 
     # Prepare request headers for Home Assistant API
     headers = {
@@ -118,11 +119,11 @@ def get_backyard_temperature():
             return temperature, last_updated
         else:
             logger.error(f"Failed to get data from Home Assistant. Status Code: {response.status_code}")
-            return None
+            return None, None
     except requests.exceptions.RequestException as e:
         # Log any exception that occurs during the request
         logger.error(f"Error occurred while making request: {e}")
-        return None
+        return None, None
 
 # Utility function to convert Celsius to Fahrenheit
 def celsius_to_fahrenheit(celsius):
@@ -141,6 +142,7 @@ def index():
         # If temperature could not be retrieved, set to 'N/A'
         temperature_c = "N/A"
         temperature_f = "N/A"
+        last_updated = "N/A"
     else:
         # Convert Celsius to Fahrenheit if valid temperature is available
         temperature_f = celsius_to_fahrenheit(temperature_c)
