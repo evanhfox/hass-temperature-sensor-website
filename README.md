@@ -2,22 +2,32 @@
 
 ## Overview
 
-This project is a simple Flask web application that connects to a Home Assistant API to display the temperature of your backyard. The application fetches the temperature data from a specific Home Assistant entity and displays it on a sleek and modern web page. You can also run this app in a Docker container for easy deployment.
+This project is a robust Flask web application that connects to a Home Assistant API to display temperature data in a sleek, modern web interface. The application features comprehensive error handling, security scanning, automated testing, and CI/CD integration for production-ready deployment.
 
 ## Features
 
-- Connects to a Home Assistant instance to fetch temperature data.
-- Displays the temperature in both Celsius and Fahrenheit units.
-- Offers a simple HTML interface styled with CSS for a modern look.
-- Supports dummy data for development and testing purposes.
-- Dockerized for easy deployment.
+- 🌡️ **Temperature Display**: Shows temperature in both Celsius and Fahrenheit
+- 🏠 **Home Assistant Integration**: Connects to HA API with proper authentication
+- 🎨 **Modern UI**: Clean, responsive design with dark theme
+- 🧪 **Dummy Data Mode**: Built-in testing mode for development
+- 🐳 **Docker Support**: Multi-platform container builds (AMD64/ARM64)
+- 🔒 **Security Scanning**: Automated Trivy vulnerability scanning
+- 🧪 **Comprehensive Testing**: 22 test cases covering edge cases and errors
+- 🚀 **CI/CD Pipeline**: GitHub Actions with automated builds and security scans
+- 📊 **Error Handling**: Robust handling of network issues, invalid data, and API errors
+- 📝 **Logging**: Comprehensive logging for debugging and monitoring
 
 ## Requirements
 
-To run the application, you need to install the following Python packages (as listed in `requirements.txt`):
+### Python Dependencies
+- **Python 3.9+** (tested with Python 3.13)
+- **Flask==3.1.2** - Web framework
+- **requests==2.32.5** - HTTP client for Home Assistant API
+- **pytest==8.4.2** - Testing framework
 
-- Flask==3.1.2
-- requests==2.32.5
+### System Requirements
+- **Docker** (optional, for containerized deployment)
+- **Home Assistant** instance with API access
 
 ## Setup Instructions
 
@@ -35,6 +45,11 @@ cd home-assistant-temperature-web
 Make sure you have Python 3.9 or higher installed. Install the required dependencies using `pip`:
 
 ```bash
+# Create a virtual environment (recommended)
+python3 -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
 pip install -r requirements.txt
 ```
 
@@ -65,6 +80,25 @@ python app.py
 
 The application will be available at `http://localhost:5000/` by default.
 
+## Testing
+
+Run the comprehensive test suite to ensure everything works correctly:
+
+```bash
+# Run all tests
+python -m pytest tests/ -v
+
+# Run tests with coverage
+python -m pytest tests/ --cov=app --cov-report=html
+```
+
+The test suite includes 22 test cases covering:
+- Temperature conversion edge cases
+- Error handling (network timeouts, invalid data, API errors)
+- Home Assistant API integration
+- Environment variable validation
+- Template rendering
+
 ## Running with Docker
 
 You can also run this application inside a Docker container:
@@ -74,7 +108,11 @@ You can also run this application inside a Docker container:
 Use the provided Dockerfile to build the Docker image:
 
 ```bash
+# Build for current platform
 docker build -t home-assistant-temperature-web .
+
+# Build for multiple platforms (AMD64/ARM64)
+docker buildx build --platform linux/amd64,linux/arm64 -t home-assistant-temperature-web .
 ```
 
 ### 2. Run the Docker Container
@@ -83,37 +121,117 @@ Run the container using the following command:
 
 ```bash
 docker run -p 5000:5000 \
-  -e HOME_ASSISTANT_URL="<your_home_assistant_url>" \
-  -e ENTITY_ID="<your_entity_id>" \
-  -e API_TOKEN="<your_api_token>" \
+  -e HOME_ASSISTANT_URL="http://your-home-assistant-ip:8123" \
+  -e ENTITY_ID="sensor.backyard_temperature" \
+  -e API_TOKEN="your_long_lived_access_token" \
   -e USE_DUMMY_DATA="false" \
   home-assistant-temperature-web
 ```
 
-Replace the environment variable values (`<your_home_assistant_url>`, `<your_entity_id>`, `<your_api_token>`) as needed.
+**Note**: Replace the environment variable values with your actual Home Assistant configuration.
 
 ## Using Dummy Data
 
 If you do not have a Home Assistant instance available for testing, you can set the `USE_DUMMY_DATA` environment variable to `true`. This will make the application display a dummy temperature value of 25°C.
 
+## CI/CD Pipeline
+
+This project includes automated CI/CD pipelines via GitHub Actions:
+
+### Features
+- 🐳 **Multi-platform Docker builds** (AMD64/ARM64)
+- 🔒 **Automated security scanning** with Trivy
+- 🧪 **Comprehensive testing** on every push/PR
+- 📦 **Container registry publishing** to GitHub Container Registry
+- 💬 **PR comments** with security scan results
+- 📊 **Security summaries** in GitHub Actions
+
+### Workflows
+- **CI Pipeline** (`ci-pipeline.yml`): Main build, test, and security scan workflow
+- **Tests** (`tests.yml`): Python test suite execution
+
 ## Project Structure
 
 ```
-home-assistant-temperature-web/
-├── app.py             # The main Flask application file
-├── Dockerfile         # Dockerfile to containerize the application
-├── requirements.txt   # Python dependencies
-└── README.md          # Project documentation
+hass-temperature-sensor-website/
+├── app.py                          # Main Flask application
+├── Dockerfile                      # Multi-platform container build
+├── requirements.txt                # Python dependencies
+├── tests/
+│   └── test_app.py                # Comprehensive test suite (22 tests)
+├── .github/
+│   └── workflows/
+│       ├── ci-pipeline.yml        # Main CI/CD pipeline
+│       ├── tests.yml              # Test execution workflow
+│       └── README.md              # Workflow documentation
+└── README.md                      # This file
 ```
 
 ## License
 
 This project is open source and available under the [MIT License](LICENSE).
 
+## Troubleshooting
+
+### Common Issues
+
+**Application shows "N/A" for temperature:**
+- Check that `HOME_ASSISTANT_URL` is correct and accessible
+- Verify `ENTITY_ID` exists in your Home Assistant instance
+- Ensure `API_TOKEN` is valid and has proper permissions
+- Check Home Assistant logs for API errors
+
+**Docker build fails:**
+- Ensure Docker is running and up to date
+- Check that all files are present in the build context
+- Verify Dockerfile syntax
+
+**Tests fail:**
+- Ensure all dependencies are installed: `pip install -r requirements.txt`
+- Run tests in a virtual environment
+- Check Python version compatibility (3.9+)
+
+**Security scan shows vulnerabilities:**
+- Review Trivy scan results in GitHub Actions
+- Update base Docker image if needed
+- Check for false positives in scan results
+
+### Debug Mode
+
+Enable debug logging by setting the log level:
+
+```bash
+export LOG_LEVEL=DEBUG
+python app.py
+```
+
 ## Contributing
 
-Feel free to submit issues or pull requests for any improvements or suggestions you may have. Contributions are always welcome!
+We welcome contributions! Here's how to get started:
+
+1. **Fork the repository**
+2. **Create a feature branch**: `git checkout -b feature/amazing-feature`
+3. **Make your changes** and add tests
+4. **Run the test suite**: `python -m pytest tests/ -v`
+5. **Commit your changes**: `git commit -m 'Add amazing feature'`
+6. **Push to your branch**: `git push origin feature/amazing-feature`
+7. **Open a Pull Request**
+
+### Development Guidelines
+
+- Follow existing code style and patterns
+- Add tests for new features
+- Update documentation as needed
+- Ensure all tests pass before submitting PR
+- Use descriptive commit messages
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
 
 ## Contact
 
-For any questions or issues, feel free to contact me through the GitHub repository.
+For questions, issues, or contributions:
+- 📧 **Issues**: [GitHub Issues](https://github.com/evanhfox/hass-temperature-sensor-website/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/evanhfox/hass-temperature-sensor-website/discussions)
+- 🔧 **Pull Requests**: [GitHub Pull Requests](https://github.com/evanhfox/hass-temperature-sensor-website/pulls)
