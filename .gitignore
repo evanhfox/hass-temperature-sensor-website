@@ -65,3 +65,6 @@ the desktop.ini
 
 # Pytest
 .pytest_cache/
+
+# Cursor
+.cursorrules
