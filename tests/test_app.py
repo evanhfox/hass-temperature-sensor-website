@@ -21,11 +21,19 @@ def load_app(env=None):
         "ENTITIES",
         "REFRESH_INTERVAL_SECONDS",
         "HISTORY_POINTS",
+        "REQUEST_TIMEOUT",
+        "SECRET_KEY",
+        "TESTING",
     ]:
         os.environ.pop(key, None)
     os.environ.update(env)
-    if "app" in sys.modules:
-        del sys.modules["app"]
+    
+    # Clear all modules to ensure fresh import
+    modules_to_clear = ["app", "config", "blueprints", "blueprints.main", "blueprints.dashboard", "blueprints.api"]
+    for module in modules_to_clear:
+        if module in sys.modules:
+            del sys.modules[module]
+    
     return importlib.import_module("app")
 
 
@@ -540,6 +548,70 @@ def test_entities_api_with_real_mode(monkeypatch):
 def test_dashboard_route_renders(dummy_app):
     dummy_app.app.config["TESTING"] = True
     client = dummy_app.app.test_client()
-    resp = client.get("/dashboard")
+    resp = client.get("/dashboard/")
     assert resp.status_code == 200
     assert b"Sensor Dashboard" in resp.data
+
+
+def test_health_endpoint(dummy_app):
+    """Test health check endpoint."""
+    dummy_app.app.config["TESTING"] = True
+    client = dummy_app.app.test_client()
+    resp = client.get("/api/health")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "healthy"
+    assert "timestamp" in data
+    assert "version" in data
+
+
+def test_config_validation():
+    """Test configuration validation."""
+    # Test missing required vars
+    with pytest.raises(SystemExit):
+        load_app({"USE_DUMMY_DATA": "false"})
+    
+    # Test invalid numeric values
+    app = load_app({
+        "USE_DUMMY_DATA": "true",
+        "REFRESH_INTERVAL_SECONDS": "invalid",
+        "HISTORY_POINTS": "not_a_number",
+    })
+    # Should not crash, should use defaults
+    assert app.config.REFRESH_INTERVAL_SECONDS == 15
+    assert app.config.HISTORY_POINTS == 100
+
+
+def test_multi_entity_mode_detection():
+    """Test multi-entity mode detection."""
+    app = load_app({
+        "USE_DUMMY_DATA": "true",
+        "ENTITIES": "sensor.one,sensor.two",
+    })
+    assert app.config.is_multi_entity_mode is True
+    assert app.config.get_entities_to_query() == ["sensor.one", "sensor.two"]
+
+
+def test_single_entity_mode_detection():
+    """Test single-entity mode detection."""
+    app = load_app({
+        "USE_DUMMY_DATA": "true",
+        "ENTITY_ID": "sensor.backyard",
+    })
+    assert app.config.is_multi_entity_mode is False
+    assert app.config.get_entities_to_query() == ["sensor.backyard"]
+
+
+def test_primary_entity_fallback():
+    """Test primary entity fallback logic."""
+    app = load_app({
+        "USE_DUMMY_DATA": "true",
+        "ENTITIES": "sensor.one,sensor.two",
+    })
+    assert app.config.primary_entity == "sensor.one"
+    
+    app2 = load_app({
+        "USE_DUMMY_DATA": "true",
+        "ENTITY_ID": "sensor.backyard",
+    })
+    assert app2.config.primary_entity == "sensor.backyard"
