@@ -5,7 +5,7 @@
 # Dockerfile to package this app into a container
 # Create a Dockerfile for building a containerized version of the app
 # FROM directive sets the base image to Python 3.9
-FROM python:3.13-alpine
+FROM python:3.14-alpine
 
 # Set the working directory in the container
 WORKDIR /app
